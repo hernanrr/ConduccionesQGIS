@@ -1,0 +1,17 @@
+[general]
+name=ConduccionesQGIS
+qgisMinimumVersion=4.0
+qgisMaximumVersion=4.99
+description=Herramientas docentes para alineamiento de conducciones a presion.
+version=0.1.0
+author=OpenAI Codex
+email=
+about=Plugin modular para automatizar calculos geometricos repetitivos en conducciones.
+category=Plugins
+hasProcessingProvider=yes
+icon=icons/conducciones.svg
+
+[help]
+homepage=
+repository=
+tracker=

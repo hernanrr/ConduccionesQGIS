@@ -1,0 +1,10 @@
+{
+  "descripcion": "Alineamiento simple de 5 vertices para pruebas manuales",
+  "vertices": [
+    [0.0, 0.0],
+    [0.0, 100.0],
+    [100.0, 100.0],
+    [100.0, 200.0],
+    [200.0, 200.0]
+  ]
+}
