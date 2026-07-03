@@ -7,6 +7,9 @@ from qgis.core import QgsProcessingProvider
 from ConduccionesQGIS.processing.exportar_resultados_algorithm import (
     ExportarResultadosAlgorithm,
 )
+from ConduccionesQGIS.processing.perfil_longitudinal_algorithm import (
+    PerfilLongitudinalAlgorithm,
+)
 from ConduccionesQGIS.processing.tabla_alineamiento_algorithm import (
     TablaAlineamientoAlgorithm,
 )
@@ -18,6 +21,7 @@ class IngenieriaHidraulicaProvider(QgsProcessingProvider):
     def loadAlgorithms(self) -> None:
         """Registra los algoritmos disponibles."""
         self.addAlgorithm(ExportarResultadosAlgorithm())
+        self.addAlgorithm(PerfilLongitudinalAlgorithm())
         self.addAlgorithm(TablaAlineamientoAlgorithm())
 
     def id(self) -> str:
