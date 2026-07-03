@@ -5,13 +5,20 @@ from __future__ import annotations
 import csv
 
 import pytest
+from ConduccionesQGIS.core.alineamiento import construir_tabla_alineamiento
 from ConduccionesQGIS.core.exportacion import (
+    COLUMNAS_PUNTOS_INTERSECCION,
+    COLUMNAS_TRAMOS,
+    NOMBRE_TABLA_PUNTOS_INTERSECCION,
+    NOMBRE_TABLA_TRAMOS,
     construir_ruta_exportacion,
     crear_tabla_exportable,
     exportar_tabla_csv,
     exportar_tablas_csv,
+    serializar_tablas_alineamiento,
     validar_nombre_base,
 )
+from ConduccionesQGIS.core.models import Punto2D
 
 
 def test_crear_tabla_exportable_preserva_columnas_y_filas() -> None:
@@ -83,3 +90,45 @@ def test_exportar_tablas_csv_genera_un_archivo_por_tabla(tmp_path) -> None:
     assert set(rutas) == {"puntos_interseccion", "tramos"}
     assert rutas["puntos_interseccion"].name.endswith("_puntos_interseccion.csv")
     assert rutas["tramos"].name.endswith("_tramos.csv")
+
+
+def test_serializar_tablas_alineamiento_expone_contrato_estable() -> None:
+    """Serializa puntos y tramos con nombres y columnas fijos para v0.2."""
+    vertices = [
+        Punto2D(0.0, 0.0),
+        Punto2D(0.0, 100.0),
+        Punto2D(100.0, 100.0),
+        Punto2D(100.0, 200.0),
+    ]
+    puntos, tramos = construir_tabla_alineamiento(vertices)
+
+    tabla_puntos, tabla_tramos = serializar_tablas_alineamiento(puntos, tramos)
+
+    assert tabla_puntos.nombre == NOMBRE_TABLA_PUNTOS_INTERSECCION
+    assert tabla_puntos.columnas == COLUMNAS_PUNTOS_INTERSECCION
+    assert len(tabla_puntos.filas) == len(puntos)
+
+    assert tabla_tramos.nombre == NOMBRE_TABLA_TRAMOS
+    assert tabla_tramos.columnas == COLUMNAS_TRAMOS
+    assert len(tabla_tramos.filas) == len(tramos)
+
+
+def test_serializar_tablas_alineamiento_mantiene_coherencia_entre_pi_y_tramos() -> None:
+    """Mantiene coherencia entre progresivas, tramos y referencias de PI."""
+    vertices = [
+        Punto2D(0.0, 0.0),
+        Punto2D(0.0, 100.0),
+        Punto2D(100.0, 100.0),
+        Punto2D(100.0, 200.0),
+    ]
+    puntos, tramos = construir_tabla_alineamiento(vertices)
+
+    tabla_puntos, tabla_tramos = serializar_tablas_alineamiento(puntos, tramos)
+
+    primera_fila_tramo = tabla_tramos.filas[0]
+    segunda_fila_punto = tabla_puntos.filas[1]
+
+    assert primera_fila_tramo[1] == 1
+    assert primera_fila_tramo[2] == 2
+    assert primera_fila_tramo[3] == pytest.approx(100.0)
+    assert segunda_fila_punto[1] == pytest.approx(100.0)

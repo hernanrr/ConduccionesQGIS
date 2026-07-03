@@ -7,6 +7,33 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from .models import PuntoInterseccion, Tramo
+
+NOMBRE_TABLA_PUNTOS_INTERSECCION = "puntos_interseccion"
+NOMBRE_TABLA_TRAMOS = "tramos"
+
+COLUMNAS_PUNTOS_INTERSECCION = (
+    "PI",
+    "Progresiva",
+    "X",
+    "Y",
+    "Longitud_tramo",
+    "Azimut",
+    "Deflexión",
+    "Giro",
+    "Codo_recomendado",
+)
+
+COLUMNAS_TRAMOS = (
+    "Tramo",
+    "PI_inicial",
+    "PI_final",
+    "Longitud_horizontal",
+    "Longitud_inclinada",
+    "Pendiente",
+    "Azimut",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class TablaExportable:
@@ -91,3 +118,58 @@ def exportar_tablas_csv(
         tabla.nombre: exportar_tabla_csv(tabla, directorio, nombre_base)
         for tabla in tablas
     }
+
+
+def serializar_puntos_interseccion(
+    puntos: Sequence[PuntoInterseccion],
+) -> TablaExportable:
+    """Convierte puntos de interseccion a una tabla exportable estable."""
+    return crear_tabla_exportable(
+        NOMBRE_TABLA_PUNTOS_INTERSECCION,
+        COLUMNAS_PUNTOS_INTERSECCION,
+        [
+            (
+                punto.numero,
+                punto.progresiva,
+                punto.punto.x,
+                punto.punto.y,
+                punto.longitud_tramo,
+                punto.azimut,
+                punto.deflexion,
+                punto.giro.value,
+                punto.codo_recomendado,
+            )
+            for punto in puntos
+        ],
+    )
+
+
+def serializar_tramos(tramos: Sequence[Tramo]) -> TablaExportable:
+    """Convierte tramos a una tabla exportable estable."""
+    return crear_tabla_exportable(
+        NOMBRE_TABLA_TRAMOS,
+        COLUMNAS_TRAMOS,
+        [
+            (
+                tramo.numero,
+                tramo.pi_inicial,
+                tramo.pi_final,
+                tramo.longitud_horizontal,
+                tramo.longitud_inclinada,
+                tramo.pendiente,
+                tramo.azimut,
+            )
+            for tramo in tramos
+        ],
+    )
+
+
+def serializar_tablas_alineamiento(
+    puntos: Sequence[PuntoInterseccion],
+    tramos: Sequence[Tramo],
+) -> tuple[TablaExportable, TablaExportable]:
+    """Serializa las tablas estables del modulo de alineamiento."""
+    return (
+        serializar_puntos_interseccion(puntos),
+        serializar_tramos(tramos),
+    )
