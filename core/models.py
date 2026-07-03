@@ -49,3 +49,25 @@ class Tramo:
     longitud_inclinada: float | None
     pendiente: float | None
     azimut: float
+
+
+@dataclass(frozen=True, slots=True)
+class PerfilPunto:
+    """Representa la informacion de terreno en un PI."""
+
+    numero_pi: int
+    progresiva: float
+    cota_terreno: float
+
+
+@dataclass(frozen=True, slots=True)
+class PerfilTramo:
+    """Representa los calculos topograficos de un tramo del perfil."""
+
+    numero_tramo: int
+    pi_inicial: int
+    pi_final: int
+    longitud_horizontal: float
+    delta_z: float
+    longitud_inclinada: float
+    pendiente_porcentaje: float

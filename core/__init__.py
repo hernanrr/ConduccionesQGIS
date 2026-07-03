@@ -27,7 +27,15 @@ from .exportacion import (
     serializar_tramos,
     validar_nombre_base,
 )
-from .models import Giro, Punto2D, PuntoInterseccion, Tramo
+from .models import (
+    Giro,
+    PerfilPunto,
+    PerfilTramo,
+    Punto2D,
+    PuntoInterseccion,
+    Tramo,
+)
+from .perfil import calcular_pendiente_porcentaje, construir_perfil_longitudinal
 
 __all__ = [
     "CatalogoCodos",
@@ -39,13 +47,17 @@ __all__ = [
     "Giro",
     "NOMBRE_TABLA_PUNTOS_INTERSECCION",
     "NOMBRE_TABLA_TRAMOS",
+    "PerfilPunto",
+    "PerfilTramo",
     "Punto2D",
     "PuntoInterseccion",
     "ResultadoExportacionArchivos",
     "TablaExportable",
     "Tramo",
+    "calcular_pendiente_porcentaje",
     "construir_ruta_exportacion",
     "construir_ruta_xlsx",
+    "construir_perfil_longitudinal",
     "construir_tabla_alineamiento",
     "crear_tabla_exportable",
     "exportar_tablas",
