@@ -7,10 +7,14 @@ import csv
 import pytest
 from ConduccionesQGIS.core.alineamiento import construir_tabla_alineamiento
 from ConduccionesQGIS.core.exportacion import (
+    COLUMNAS_PERFIL_PUNTOS,
+    COLUMNAS_PERFIL_TRAMOS,
     COLUMNAS_PUNTOS_INTERSECCION,
     COLUMNAS_TRAMOS,
     FORMATO_CSV,
     FORMATO_XLSX,
+    NOMBRE_TABLA_PERFIL_PUNTOS,
+    NOMBRE_TABLA_PERFIL_TRAMOS,
     NOMBRE_TABLA_PUNTOS_INTERSECCION,
     NOMBRE_TABLA_TRAMOS,
     construir_ruta_exportacion,
@@ -20,9 +24,11 @@ from ConduccionesQGIS.core.exportacion import (
     exportar_tablas_csv,
     exportar_tablas_xlsx,
     serializar_tablas_alineamiento,
+    serializar_tablas_perfil,
     validar_nombre_base,
 )
 from ConduccionesQGIS.core.models import Punto2D
+from ConduccionesQGIS.core.perfil import construir_perfil_longitudinal
 from openpyxl import load_workbook
 
 
@@ -168,3 +174,53 @@ def test_exportar_tablas_permite_csv_y_xlsx_en_misma_ejecucion(tmp_path) -> None
 
     assert set(resultado.csv) == {"puntos_interseccion", "tramos"}
     assert resultado.xlsx is not None and resultado.xlsx.exists()
+
+
+def test_serializar_tablas_perfil_expone_contrato_estable() -> None:
+    """Serializa el perfil longitudinal con nombres y columnas fijos."""
+    vertices = [
+        Punto2D(0.0, 0.0),
+        Punto2D(0.0, 100.0),
+        Punto2D(100.0, 100.0),
+    ]
+    puntos, tramos = construir_tabla_alineamiento(vertices)
+    perfil_puntos, perfil_tramos = construir_perfil_longitudinal(
+        puntos,
+        tramos,
+        [10.0, 12.5, 15.0],
+    )
+
+    tabla_puntos, tabla_tramos = serializar_tablas_perfil(
+        perfil_puntos,
+        perfil_tramos,
+    )
+
+    assert tabla_puntos.nombre == NOMBRE_TABLA_PERFIL_PUNTOS
+    assert tabla_puntos.columnas == COLUMNAS_PERFIL_PUNTOS
+    assert tabla_puntos.filas[1] == (2, pytest.approx(100.0), pytest.approx(12.5))
+
+    assert tabla_tramos.nombre == NOMBRE_TABLA_PERFIL_TRAMOS
+    assert tabla_tramos.columnas == COLUMNAS_PERFIL_TRAMOS
+    assert len(tabla_tramos.filas) == len(perfil_tramos)
+
+
+def test_serializar_tablas_perfil_mantiene_delta_z_y_pendiente() -> None:
+    """Conserva los calculos del perfil al serializar las tablas exportables."""
+    vertices = [
+        Punto2D(0.0, 0.0),
+        Punto2D(30.0, 40.0),
+        Punto2D(60.0, 40.0),
+    ]
+    puntos, tramos = construir_tabla_alineamiento(vertices)
+    perfil_puntos, perfil_tramos = construir_perfil_longitudinal(
+        puntos,
+        tramos,
+        [100.0, 104.0, 101.0],
+    )
+
+    _, tabla_tramos = serializar_tablas_perfil(perfil_puntos, perfil_tramos)
+
+    assert tabla_tramos.filas[0][3] == pytest.approx(50.0)
+    assert tabla_tramos.filas[0][4] == pytest.approx(4.0)
+    assert tabla_tramos.filas[0][6] == pytest.approx(8.0)
+    assert tabla_tramos.filas[1][4] == pytest.approx(-3.0)

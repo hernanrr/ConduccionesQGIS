@@ -7,10 +7,12 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from .models import PuntoInterseccion, Tramo
+from .models import PerfilPunto, PerfilTramo, PuntoInterseccion, Tramo
 
 NOMBRE_TABLA_PUNTOS_INTERSECCION = "puntos_interseccion"
 NOMBRE_TABLA_TRAMOS = "tramos"
+NOMBRE_TABLA_PERFIL_PUNTOS = "perfil_puntos"
+NOMBRE_TABLA_PERFIL_TRAMOS = "perfil_tramos"
 FORMATO_CSV = "csv"
 FORMATO_XLSX = "xlsx"
 FORMATOS_EXPORTACION = (FORMATO_CSV, FORMATO_XLSX)
@@ -35,6 +37,22 @@ COLUMNAS_TRAMOS = (
     "Longitud_inclinada",
     "Pendiente",
     "Azimut",
+)
+
+COLUMNAS_PERFIL_PUNTOS = (
+    "PI",
+    "Progresiva",
+    "Cota_terreno",
+)
+
+COLUMNAS_PERFIL_TRAMOS = (
+    "Tramo",
+    "PI_inicial",
+    "PI_final",
+    "Longitud_horizontal",
+    "Delta_Z",
+    "Longitud_inclinada",
+    "Pendiente",
 )
 
 
@@ -238,6 +256,53 @@ def serializar_tablas_alineamiento(
     return (
         serializar_puntos_interseccion(puntos),
         serializar_tramos(tramos),
+    )
+
+
+def serializar_perfil_puntos(puntos: Sequence[PerfilPunto]) -> TablaExportable:
+    """Convierte el perfil por PI a una tabla exportable estable."""
+    return crear_tabla_exportable(
+        NOMBRE_TABLA_PERFIL_PUNTOS,
+        COLUMNAS_PERFIL_PUNTOS,
+        [
+            (
+                punto.numero_pi,
+                punto.progresiva,
+                punto.cota_terreno,
+            )
+            for punto in puntos
+        ],
+    )
+
+
+def serializar_perfil_tramos(tramos: Sequence[PerfilTramo]) -> TablaExportable:
+    """Convierte el perfil por tramo a una tabla exportable estable."""
+    return crear_tabla_exportable(
+        NOMBRE_TABLA_PERFIL_TRAMOS,
+        COLUMNAS_PERFIL_TRAMOS,
+        [
+            (
+                tramo.numero_tramo,
+                tramo.pi_inicial,
+                tramo.pi_final,
+                tramo.longitud_horizontal,
+                tramo.delta_z,
+                tramo.longitud_inclinada,
+                tramo.pendiente_porcentaje,
+            )
+            for tramo in tramos
+        ],
+    )
+
+
+def serializar_tablas_perfil(
+    puntos: Sequence[PerfilPunto],
+    tramos: Sequence[PerfilTramo],
+) -> tuple[TablaExportable, TablaExportable]:
+    """Serializa las tablas estables del modulo de perfil longitudinal."""
+    return (
+        serializar_perfil_puntos(puntos),
+        serializar_perfil_tramos(tramos),
     )
 
 
