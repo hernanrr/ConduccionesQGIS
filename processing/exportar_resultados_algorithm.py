@@ -13,9 +13,13 @@ from qgis.core import (
 )
 
 from ConduccionesQGIS.core.exportacion import (
+    COLUMNAS_PERFIL_PUNTOS,
+    COLUMNAS_PERFIL_TRAMOS,
     COLUMNAS_PUNTOS_INTERSECCION,
     FORMATO_CSV,
     FORMATO_XLSX,
+    NOMBRE_TABLA_PERFIL_PUNTOS,
+    NOMBRE_TABLA_PERFIL_TRAMOS,
     NOMBRE_TABLA_PUNTOS_INTERSECCION,
     crear_tabla_exportable,
     exportar_tablas,
@@ -36,7 +40,7 @@ class ExportarResultadosAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSource(
                 self.INPUT,
                 "Capa de resultados",
-                [QgsProcessing.TypeVectorPoint],
+                [QgsProcessing.TypeVector],
             )
         )
         self.addParameter(
@@ -67,14 +71,7 @@ class ExportarResultadosAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException("No se pudo leer la capa de resultados.")
 
         campos = [field.name() for field in source.fields()]
-        faltantes = [
-            campo for campo in COLUMNAS_PUNTOS_INTERSECCION if campo not in campos
-        ]
-        if faltantes:
-            raise QgsProcessingException(
-                "La capa no tiene el esquema esperado de Tabla de alineamiento. "
-                f"Faltan campos: {faltantes}."
-            )
+        nombre_tabla, columnas = _resolver_esquema_exportable(campos)
 
         nombre_base = self.parameterAsString(parameters, self.EXPORT_BASE_NAME, context)
         directorio = self.parameterAsString(parameters, self.EXPORT_DIRECTORY, context)
@@ -82,13 +79,11 @@ class ExportarResultadosAlgorithm(QgsProcessingAlgorithm):
 
         filas = []
         for feature in source.getFeatures():
-            filas.append(
-                tuple(feature[campo] for campo in COLUMNAS_PUNTOS_INTERSECCION)
-            )
+            filas.append(tuple(feature[campo] for campo in columnas))
 
         tabla = crear_tabla_exportable(
-            NOMBRE_TABLA_PUNTOS_INTERSECCION,
-            COLUMNAS_PUNTOS_INTERSECCION,
+            nombre_tabla,
+            columnas,
             filas,
         )
         resultado = exportar_tablas([tabla], directorio, nombre_base, formatos)
@@ -146,3 +141,26 @@ class ExportarResultadosAlgorithm(QgsProcessingAlgorithm):
             )
 
         return formatos
+
+
+def _resolver_esquema_exportable(campos: list[str]) -> tuple[str, tuple[str, ...]]:
+    """Resuelve el contrato exportable segun el esquema de la capa."""
+    if _contiene_todos(campos, COLUMNAS_PUNTOS_INTERSECCION):
+        return NOMBRE_TABLA_PUNTOS_INTERSECCION, COLUMNAS_PUNTOS_INTERSECCION
+    if _contiene_todos(campos, COLUMNAS_PERFIL_PUNTOS):
+        return NOMBRE_TABLA_PERFIL_PUNTOS, COLUMNAS_PERFIL_PUNTOS
+    if _contiene_todos(campos, COLUMNAS_PERFIL_TRAMOS):
+        return NOMBRE_TABLA_PERFIL_TRAMOS, COLUMNAS_PERFIL_TRAMOS
+
+    raise QgsProcessingException(
+        "La capa no tiene un esquema reconocido del plugin. Se esperaba una "
+        "tabla de alineamiento, perfil por PI o perfil por tramos."
+    )
+
+
+def _contiene_todos(
+    campos_actuales: list[str],
+    campos_esperados: tuple[str, ...],
+) -> bool:
+    """Indica si la capa contiene todas las columnas requeridas."""
+    return all(campo in campos_actuales for campo in campos_esperados)

@@ -11,10 +11,14 @@ from qgis.core import (
     QgsProcessing,
     QgsProcessingAlgorithm,
     QgsProcessingException,
+    QgsProcessingParameterBoolean,
+    QgsProcessingParameterEnum,
     QgsProcessingParameterFeatureSink,
     QgsProcessingParameterFeatureSource,
+    QgsProcessingParameterFolderDestination,
     QgsProcessingParameterNumber,
     QgsProcessingParameterRasterLayer,
+    QgsProcessingParameterString,
     QgsRaster,
     QgsRasterLayer,
     QgsWkbTypes,
@@ -22,6 +26,12 @@ from qgis.core import (
 from qgis.PyQt.QtCore import QVariant
 
 from ConduccionesQGIS.core.alineamiento import construir_tabla_alineamiento
+from ConduccionesQGIS.core.exportacion import (
+    FORMATO_CSV,
+    FORMATO_XLSX,
+    exportar_tablas,
+    serializar_tablas_perfil,
+)
 from ConduccionesQGIS.core.models import Punto2D
 from ConduccionesQGIS.core.perfil import construir_perfil_longitudinal
 
@@ -32,6 +42,10 @@ class PerfilLongitudinalAlgorithm(QgsProcessingAlgorithm):
     INPUT = "INPUT"
     DEM = "DEM"
     BAND = "BAND"
+    EXPORT_ENABLED = "EXPORT_ENABLED"
+    EXPORT_DIRECTORY = "EXPORT_DIRECTORY"
+    EXPORT_BASE_NAME = "EXPORT_BASE_NAME"
+    EXPORT_FORMATS = "EXPORT_FORMATS"
     OUTPUT_POINTS = "OUTPUT_POINTS"
     OUTPUT_SEGMENTS = "OUTPUT_SEGMENTS"
 
@@ -57,6 +71,36 @@ class PerfilLongitudinalAlgorithm(QgsProcessingAlgorithm):
                 type=QgsProcessingParameterNumber.Integer,
                 defaultValue=1,
                 minValue=1,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.EXPORT_ENABLED,
+                "Exportar resultados a archivos",
+                defaultValue=False,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterFolderDestination(
+                self.EXPORT_DIRECTORY,
+                "Directorio de exportación",
+                optional=True,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterString(
+                self.EXPORT_BASE_NAME,
+                "Nombre base de exportación",
+                optional=True,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                self.EXPORT_FORMATS,
+                "Formatos de exportación",
+                options=["CSV", "XLSX"],
+                allowMultiple=True,
+                optional=True,
             )
         )
         self.addParameter(
@@ -176,6 +220,31 @@ class PerfilLongitudinalAlgorithm(QgsProcessingAlgorithm):
             procesados += 1
             feedback.setProgress(int((procesados / total) * 100))
 
+        export_enabled = self.parameterAsBool(parameters, self.EXPORT_ENABLED, context)
+        if export_enabled:
+            directorio = self.parameterAsString(
+                parameters, self.EXPORT_DIRECTORY, context
+            )
+            nombre_base = self.parameterAsString(
+                parameters, self.EXPORT_BASE_NAME, context
+            )
+            formatos = self._resolver_formatos_exportacion(parameters, context)
+            if not directorio.strip():
+                raise QgsProcessingException(
+                    "Debe indicar un directorio de exportación."
+                )
+            if not nombre_base.strip():
+                raise QgsProcessingException(
+                    "Debe indicar un nombre base de exportación."
+                )
+
+            tablas = serializar_tablas_perfil(perfil_puntos, perfil_tramos)
+            resultado = exportar_tablas(tablas, directorio, nombre_base, formatos)
+            for nombre_tabla, ruta in resultado.csv.items():
+                feedback.pushInfo(f"CSV exportado ({nombre_tabla}): {ruta}")
+            if resultado.xlsx is not None:
+                feedback.pushInfo(f"XLSX exportado: {resultado.xlsx}")
+
         return {
             self.OUTPUT_POINTS: points_destination_id,
             self.OUTPUT_SEGMENTS: segments_destination_id,
@@ -207,6 +276,23 @@ class PerfilLongitudinalAlgorithm(QgsProcessingAlgorithm):
     def createInstance(self):
         """Crea una nueva instancia del algoritmo."""
         return PerfilLongitudinalAlgorithm()
+
+    def _resolver_formatos_exportacion(self, parameters, context) -> list[str]:
+        """Convierte la seleccion de formatos a valores internos estables."""
+        indices = self.parameterAsEnums(parameters, self.EXPORT_FORMATS, context)
+        formatos: list[str] = []
+        for indice in indices:
+            if indice == 0:
+                formatos.append(FORMATO_CSV)
+            elif indice == 1:
+                formatos.append(FORMATO_XLSX)
+
+        if not formatos:
+            raise QgsProcessingException(
+                "Debe seleccionar al menos un formato de exportación."
+            )
+
+        return formatos
 
     def _muestrear_cota(
         self,
