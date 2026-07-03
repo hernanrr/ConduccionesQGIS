@@ -1,4 +1,4 @@
-# Arquitectura v0.1
+# Arquitectura v0.2
 
 ## Enfoque
 
@@ -21,6 +21,17 @@ El proyecto sigue una arquitectura **library-first**:
 - `Deflexion`
 - `Giro`
 - `Codo_recomendado`
+
+## Exportacion v0.2
+
+La exportacion sigue una base reusable en `core/exportacion.py`:
+
+- `puntos_interseccion` se exporta a CSV y/o XLSX
+- `tramos` se exporta a CSV y/o XLSX
+- `Tabla de alineamiento` puede exportar al finalizar
+- `Exportar resultados` permite exportar una capa ya generada
+
+El `XLSX` agrupa las tablas en hojas separadas y depende de `openpyxl`.
 
 ## Reglas clave
 

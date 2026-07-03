@@ -9,16 +9,21 @@ from ConduccionesQGIS.core.alineamiento import construir_tabla_alineamiento
 from ConduccionesQGIS.core.exportacion import (
     COLUMNAS_PUNTOS_INTERSECCION,
     COLUMNAS_TRAMOS,
+    FORMATO_CSV,
+    FORMATO_XLSX,
     NOMBRE_TABLA_PUNTOS_INTERSECCION,
     NOMBRE_TABLA_TRAMOS,
     construir_ruta_exportacion,
     crear_tabla_exportable,
     exportar_tabla_csv,
+    exportar_tablas,
     exportar_tablas_csv,
+    exportar_tablas_xlsx,
     serializar_tablas_alineamiento,
     validar_nombre_base,
 )
 from ConduccionesQGIS.core.models import Punto2D
+from openpyxl import load_workbook
 
 
 def test_crear_tabla_exportable_preserva_columnas_y_filas() -> None:
@@ -132,3 +137,34 @@ def test_serializar_tablas_alineamiento_mantiene_coherencia_entre_pi_y_tramos() 
     assert primera_fila_tramo[2] == 2
     assert primera_fila_tramo[3] == pytest.approx(100.0)
     assert segunda_fila_punto[1] == pytest.approx(100.0)
+
+
+def test_exportar_tablas_xlsx_genera_hojas_separadas(tmp_path) -> None:
+    """Exporta varias tablas a un libro XLSX con una hoja por tabla."""
+    puntos = crear_tabla_exportable("puntos_interseccion", ["PI"], [(1,), (2,)])
+    tramos = crear_tabla_exportable("tramos", ["Tramo"], [(1,), (2,)])
+
+    ruta = exportar_tablas_xlsx([puntos, tramos], tmp_path, "alineamiento_demo")
+
+    assert ruta.exists()
+    libro = load_workbook(ruta)
+    assert libro.sheetnames == ["puntos_interseccion", "tramos"]
+    assert libro["puntos_interseccion"]["A1"].value == "PI"
+    assert libro["puntos_interseccion"]["A2"].value == 1
+    assert libro["tramos"]["A2"].value == 1
+
+
+def test_exportar_tablas_permite_csv_y_xlsx_en_misma_ejecucion(tmp_path) -> None:
+    """Genera todos los formatos solicitados en una unica llamada."""
+    puntos = crear_tabla_exportable("puntos_interseccion", ["PI"], [(1,), (2,)])
+    tramos = crear_tabla_exportable("tramos", ["Tramo"], [(1,), (2,)])
+
+    resultado = exportar_tablas(
+        [puntos, tramos],
+        tmp_path,
+        "alineamiento_demo",
+        [FORMATO_CSV, FORMATO_XLSX],
+    )
+
+    assert set(resultado.csv) == {"puntos_interseccion", "tramos"}
+    assert resultado.xlsx is not None and resultado.xlsx.exists()
