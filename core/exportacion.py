@@ -11,6 +11,9 @@ from .models import PuntoInterseccion, Tramo
 
 NOMBRE_TABLA_PUNTOS_INTERSECCION = "puntos_interseccion"
 NOMBRE_TABLA_TRAMOS = "tramos"
+FORMATO_CSV = "csv"
+FORMATO_XLSX = "xlsx"
+FORMATOS_EXPORTACION = (FORMATO_CSV, FORMATO_XLSX)
 
 COLUMNAS_PUNTOS_INTERSECCION = (
     "PI",
@@ -57,6 +60,14 @@ class TablaExportable:
                 )
 
 
+@dataclass(frozen=True, slots=True)
+class ResultadoExportacionArchivos:
+    """Representa los archivos creados durante una exportacion."""
+
+    csv: dict[str, Path]
+    xlsx: Path | None
+
+
 def crear_tabla_exportable(
     nombre: str,
     columnas: Sequence[str],
@@ -94,6 +105,14 @@ def construir_ruta_exportacion(
     return directorio_path / f"{base}_{nombre_tabla}.{extension.lstrip('.')}"
 
 
+def construir_ruta_xlsx(directorio: str | Path, nombre_base: str) -> Path:
+    """Construye la ruta final del libro XLSX agregado."""
+    directorio_path = Path(directorio)
+    directorio_path.mkdir(parents=True, exist_ok=True)
+    base = validar_nombre_base(nombre_base)
+    return directorio_path / f"{base}.xlsx"
+
+
 def exportar_tabla_csv(
     tabla: TablaExportable,
     directorio: str | Path,
@@ -118,6 +137,53 @@ def exportar_tablas_csv(
         tabla.nombre: exportar_tabla_csv(tabla, directorio, nombre_base)
         for tabla in tablas
     }
+
+
+def exportar_tablas_xlsx(
+    tablas: Sequence[TablaExportable],
+    directorio: str | Path,
+    nombre_base: str,
+) -> Path:
+    """Exporta varias tablas en un libro XLSX con una hoja por tabla."""
+    try:
+        from openpyxl import Workbook
+    except ImportError as exc:  # pragma: no cover - depende del runtime
+        raise RuntimeError(
+            "No se pudo exportar a XLSX porque openpyxl no esta instalado."
+        ) from exc
+
+    ruta = construir_ruta_xlsx(directorio, nombre_base)
+    libro = Workbook()
+    hoja_inicial = libro.active
+    libro.remove(hoja_inicial)
+
+    for tabla in tablas:
+        hoja = libro.create_sheet(title=_normalizar_nombre_hoja(tabla.nombre))
+        hoja.append(list(tabla.columnas))
+        for fila in tabla.filas:
+            hoja.append(list(fila))
+
+    libro.save(ruta)
+    return ruta
+
+
+def exportar_tablas(
+    tablas: Sequence[TablaExportable],
+    directorio: str | Path,
+    nombre_base: str,
+    formatos: Sequence[str],
+) -> ResultadoExportacionArchivos:
+    """Exporta tablas a los formatos solicitados."""
+    formatos_normalizados = _validar_formatos_exportacion(formatos)
+    csv_paths: dict[str, Path] = {}
+    xlsx_path: Path | None = None
+
+    if FORMATO_CSV in formatos_normalizados:
+        csv_paths = exportar_tablas_csv(tablas, directorio, nombre_base)
+    if FORMATO_XLSX in formatos_normalizados:
+        xlsx_path = exportar_tablas_xlsx(tablas, directorio, nombre_base)
+
+    return ResultadoExportacionArchivos(csv=csv_paths, xlsx=xlsx_path)
 
 
 def serializar_puntos_interseccion(
@@ -173,3 +239,25 @@ def serializar_tablas_alineamiento(
         serializar_puntos_interseccion(puntos),
         serializar_tramos(tramos),
     )
+
+
+def _normalizar_nombre_hoja(nombre: str) -> str:
+    """Normaliza nombres de hoja de Excel a restricciones validas."""
+    traduccion = str.maketrans({caracter: "_" for caracter in "[]:*?/\\"})
+    nombre_limpio = nombre.translate(traduccion).strip() or "hoja"
+    return nombre_limpio[:31]
+
+
+def _validar_formatos_exportacion(formatos: Sequence[str]) -> tuple[str, ...]:
+    """Valida y normaliza los formatos de exportacion solicitados."""
+    formatos_limpios = tuple(formato.strip().lower() for formato in formatos if formato)
+    if not formatos_limpios:
+        raise ValueError("Debe seleccionarse al menos un formato de exportacion.")
+
+    desconocidos = [
+        formato for formato in formatos_limpios if formato not in FORMATOS_EXPORTACION
+    ]
+    if desconocidos:
+        raise ValueError(f"Formatos de exportacion no soportados: {desconocidos!r}")
+
+    return tuple(dict.fromkeys(formatos_limpios))

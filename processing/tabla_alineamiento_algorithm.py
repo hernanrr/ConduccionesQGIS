@@ -11,8 +11,11 @@ from qgis.core import (
     QgsProcessing,
     QgsProcessingAlgorithm,
     QgsProcessingException,
+    QgsProcessingParameterBoolean,
+    QgsProcessingParameterEnum,
     QgsProcessingParameterFeatureSink,
     QgsProcessingParameterFeatureSource,
+    QgsProcessingParameterFolderDestination,
     QgsProcessingParameterString,
     QgsWkbTypes,
 )
@@ -22,6 +25,12 @@ from ConduccionesQGIS.core.alineamiento import (
     construir_tabla_alineamiento,
     parsear_catalogo_codos,
 )
+from ConduccionesQGIS.core.exportacion import (
+    FORMATO_CSV,
+    FORMATO_XLSX,
+    exportar_tablas,
+    serializar_tablas_alineamiento,
+)
 from ConduccionesQGIS.core.models import Punto2D
 
 
@@ -30,6 +39,10 @@ class TablaAlineamientoAlgorithm(QgsProcessingAlgorithm):
 
     INPUT = "INPUT"
     BEND_CATALOG = "BEND_CATALOG"
+    EXPORT_ENABLED = "EXPORT_ENABLED"
+    EXPORT_DIRECTORY = "EXPORT_DIRECTORY"
+    EXPORT_BASE_NAME = "EXPORT_BASE_NAME"
+    EXPORT_FORMATS = "EXPORT_FORMATS"
     OUTPUT = "OUTPUT"
 
     def initAlgorithm(self, config=None) -> None:
@@ -53,6 +66,36 @@ class TablaAlineamientoAlgorithm(QgsProcessingAlgorithm):
                 self.OUTPUT,
                 "Tabla de alineamiento",
                 QgsProcessing.TypeVectorPoint,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.EXPORT_ENABLED,
+                "Exportar resultados a archivos",
+                defaultValue=False,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterFolderDestination(
+                self.EXPORT_DIRECTORY,
+                "Directorio de exportación",
+                optional=True,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterString(
+                self.EXPORT_BASE_NAME,
+                "Nombre base de exportación",
+                optional=True,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                self.EXPORT_FORMATS,
+                "Formatos de exportación",
+                options=["CSV", "XLSX"],
+                allowMultiple=True,
+                optional=True,
             )
         )
 
@@ -92,7 +135,7 @@ class TablaAlineamientoAlgorithm(QgsProcessingAlgorithm):
         catalogo_texto = self.parameterAsString(parameters, self.BEND_CATALOG, context)
         catalogo = parsear_catalogo_codos(catalogo_texto.split(","))
         vertices = [Punto2D(x=vertice.x(), y=vertice.y()) for vertice in polyline]
-        puntos, _ = construir_tabla_alineamiento(vertices, catalogo)
+        puntos, tramos = construir_tabla_alineamiento(vertices, catalogo)
 
         fields = _crear_campos()
         sink, destination_id = self.parameterAsSink(
@@ -127,6 +170,31 @@ class TablaAlineamientoAlgorithm(QgsProcessingAlgorithm):
             sink.addFeature(feature_out)
             feedback.setProgress(int(((indice + 1) / total) * 100))
 
+        export_enabled = self.parameterAsBool(parameters, self.EXPORT_ENABLED, context)
+        if export_enabled:
+            directorio = self.parameterAsString(
+                parameters, self.EXPORT_DIRECTORY, context
+            )
+            nombre_base = self.parameterAsString(
+                parameters, self.EXPORT_BASE_NAME, context
+            )
+            formatos = self._resolver_formatos_exportacion(parameters, context)
+            if not directorio.strip():
+                raise QgsProcessingException(
+                    "Debe indicar un directorio de exportación."
+                )
+            if not nombre_base.strip():
+                raise QgsProcessingException(
+                    "Debe indicar un nombre base de exportación."
+                )
+
+            tablas = serializar_tablas_alineamiento(puntos, tramos)
+            resultado = exportar_tablas(tablas, directorio, nombre_base, formatos)
+            for nombre_tabla, ruta in resultado.csv.items():
+                feedback.pushInfo(f"CSV exportado ({nombre_tabla}): {ruta}")
+            if resultado.xlsx is not None:
+                feedback.pushInfo(f"XLSX exportado: {resultado.xlsx}")
+
         return {self.OUTPUT: destination_id}
 
     def name(self) -> str:
@@ -155,6 +223,23 @@ class TablaAlineamientoAlgorithm(QgsProcessingAlgorithm):
     def createInstance(self):
         """Crea una nueva instancia del algoritmo."""
         return TablaAlineamientoAlgorithm()
+
+    def _resolver_formatos_exportacion(self, parameters, context) -> list[str]:
+        """Convierte la seleccion de formatos a valores internos estables."""
+        indices = self.parameterAsEnums(parameters, self.EXPORT_FORMATS, context)
+        formatos: list[str] = []
+        for indice in indices:
+            if indice == 0:
+                formatos.append(FORMATO_CSV)
+            elif indice == 1:
+                formatos.append(FORMATO_XLSX)
+
+        if not formatos:
+            raise QgsProcessingException(
+                "Debe seleccionar al menos un formato de exportación."
+            )
+
+        return formatos
 
 
 def _crear_campos() -> QgsFields:
